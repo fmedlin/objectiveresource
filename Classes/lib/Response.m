@@ -20,6 +20,13 @@
 	[self init];
 	self.body = data;
 	self.statusCode = [response statusCode];
+	if (statusCode == 0) {
+		NSString *statusCodeString = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding];
+	  if ([statusCodeString isEqualToString:@"HTTP Basic: Access denied."]) {
+	  	statusCode = 401;
+		}
+	  [statusCodeString release];
+	}
 	self.headers = [response allHeaderFields];
 	return self;
 }

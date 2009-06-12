@@ -26,7 +26,7 @@
 }
 
 + (void)logResponse:(NSHTTPURLResponse *)response withBody:(NSData *)body {
-	debugLog(@"<= %@", [[[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding] autorelease]);
+	debugLog(@"<= (%d) - %@", [response statusCode], [[[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding] autorelease]);
 }
 
 + (Response *)sendRequest:(NSMutableURLRequest *)request withUser:(NSString *)user andPassword:(NSString *)password {
