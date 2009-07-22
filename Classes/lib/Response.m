@@ -22,8 +22,8 @@
 	self.statusCode = [response statusCode];
 	if (statusCode == 0) {
 		NSString *statusCodeString = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding];
-	  if ([statusCodeString isEqualToString:@"HTTP Basic: Access denied."]) {
-	  	statusCode = 401;
+		if ([statusCodeString isEqualToString:@"HTTP Basic: Access denied."]) {
+			statusCode = 401;
 		}
 	  [statusCodeString release];
 	}
@@ -31,7 +31,7 @@
 	return self;
 }
 
-- (BOOL)isSuccess {
+- (BOOL) isSuccess {
 	return statusCode >= 200 && statusCode < 400;
 }
 

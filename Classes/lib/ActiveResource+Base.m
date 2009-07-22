@@ -121,8 +121,17 @@ static NSString *_activeResourcePassword = nil;
   
 }
 
+- (void) handleSaveResponse:(Response*)response {
+	
+}
+
+- (void) handleDestroyResponse:(Response*)response {
+	
+}
+
 - (BOOL)createAtPath:(NSString *)path {
 	Response *res = [Connection post:[self toXMLElementExcluding:[NSArray arrayWithObject:[self classIdName]]] to:path withUser:[[self class]  getUser] andPassword:[[self class]  getPassword]];
+	[self handleSaveResponse:res];
 	if ([res isSuccess]) {
 		NSDictionary *newProperties = [[[self class] fromXMLData:res.body] properties];
 		[self setProperties:newProperties];
@@ -137,6 +146,7 @@ static NSString *_activeResourcePassword = nil;
 	Response *res = [Connection put:[self toXMLElementExcluding:[NSArray arrayWithObject:[self classIdName]]] 
 											 to:path 
 								 withUser:[[self class]  getUser] andPassword:[[self class]  getPassword]];
+	[self handleSaveResponse:res];
 	if ([res isSuccess]) {
 		NSDictionary *newProperties = [[[self class] fromXMLData:res.body] properties];
 		[self setProperties:newProperties];
@@ -148,8 +158,10 @@ static NSString *_activeResourcePassword = nil;
 	
 }
 
-- (BOOL)destroyAtPath:(NSString *) path {
-	return [[Connection delete:path withUser:[[self class]  getUser] andPassword:[[self class]  getPassword]] isSuccess];
+- (BOOL) destroyAtPath:(NSString *) path {
+	Response *res = [Connection delete:path withUser:[[self class]  getUser] andPassword:[[self class]  getPassword]];
+	[self handleDestroyResponse:res];
+	return [res isSuccess];
 }
 
 - (BOOL)create {

@@ -7,6 +7,7 @@
 //
 
 #import "ActiveResource.h"
+#import "Response.h"
 
 @interface ActiveResource (Base) 
 
@@ -44,6 +45,8 @@
 - (BOOL)createAtPath:(NSString *)path;
 -	(BOOL)updateAtPath:(NSString *)path;
 - (BOOL)destroyAtPath:(NSString *)path;
+
+- (void) handleSaveResponse:(Response*)response;
 
 // Instance helpers for getting at commonly used class-level values
 - (NSString *)collectionPath;
