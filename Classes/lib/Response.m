@@ -1,9 +1,9 @@
 //
-//  Response.m
-//  medaxion
+// Response.m
 //
-//  Created by Ryan Daigle on 7/30/08.
-//  Copyright 2008 yFactorial, LLC. All rights reserved.
+//
+// Created by Ryan Daigle on 7/30/08.
+// Copyright 2008 yFactorial, LLC. All rights reserved.
 //
 
 #import "Response.h"
@@ -12,27 +12,44 @@
 
 @synthesize body, headers, statusCode;
 
-+ (id)responseFrom:(NSHTTPURLResponse *)response withBody:(NSData *)data {
-	return [[[self alloc] initFrom:response withBody:data] autorelease];
++ (id)responseFrom:(NSHTTPURLResponse *)response withBody:(NSData *)data andError:(NSError *)aError {
+	return [[[self alloc] initFrom:response withBody:data andError:aError] autorelease];
 }
 
-- (id)initFrom:(NSHTTPURLResponse *)response withBody:(NSData *)data {
+- (id)initFrom:(NSHTTPURLResponse *)response withBody:(NSData *)data andError:(NSError *)aError {
 	[self init];
 	self.body = data;
-	self.statusCode = [response statusCode];
-	if (statusCode == 0) {
-		NSString *statusCodeString = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding];
-		if ([statusCodeString isEqualToString:@"HTTP Basic: Access denied."]) {
-			statusCode = 401;
+	if(response) {
+		self.statusCode = [response statusCode];
+		if (statusCode == 0) {
+			NSString *statusCodeString = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding];
+			if ([statusCodeString isEqualToString:@"HTTP Basic: Access denied."]) {
+				statusCode = 401;
+			}
+			[statusCodeString release];
 		}
-	  [statusCodeString release];
+		
+		self.headers = [response allHeaderFields];
 	}
-	self.headers = [response allHeaderFields];
+
 	return self;
 }
 
-- (BOOL) isSuccess {
+- (BOOL)isSuccess {
 	return statusCode >= 200 && statusCode < 400;
+}
+
+- (BOOL)isError {
+	return ![self isSuccess];
+}
+
+- (void)log {
+	if ([self isSuccess]) {
+		debugLog(@"<= %@", [[[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding] autorelease]);
+	}
+	else {
+		NSLog(@"<= %@", [[[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding] autorelease]);
+	}
 }
 
 #pragma mark cleanup

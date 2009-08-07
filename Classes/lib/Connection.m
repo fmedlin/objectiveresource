@@ -8,6 +8,7 @@
 
 #import "Connection.h"
 #import "Response.h"
+#import "ConnectionDelegate.h"
 #import "NSData+Additions.h"
 
 
@@ -17,6 +18,16 @@
 #endif
 
 @implementation Connection
+
+static NSMutableArray *activeDelegates;
+
++ (NSMutableArray *)activeDelegates {
+	if (nil == activeDelegates) {
+		activeDelegates = [NSMutableArray array];
+		[activeDelegates retain];
+	}
+	return activeDelegates;
+}
 
 + (void)logRequest:(NSURLRequest *)request to:(NSString *)url {
 	debugLog(@"%@ -> %@", [request HTTPMethod], url);
@@ -29,32 +40,96 @@
 	debugLog(@"<= (%d) - %@", [response statusCode], [[[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding] autorelease]);
 }
 
+/*
 + (Response *)sendRequest:(NSMutableURLRequest *)request withUser:(NSString *)user andPassword:(NSString *)password {
 	
 	//lots of servers fail to implement http basic authentication correctly, so we pass the credentials even if they are not asked for
 	//TODO make this configurable?
 	NSString *authString = [[[NSString stringWithFormat:@"%@:%@",user, password] dataUsingEncoding:NSUTF8StringEncoding] base64Encoding];
-	[request addValue:[NSString stringWithFormat:@"Basic %@", authString] forHTTPHeaderField:@"Authorization"]; 
+	//[request addValue:[NSString stringWithFormat:@"Basic %@", authString] forHTTPHeaderField:@"Authorization"]; 
 	[request addValue:@"application/xml" forHTTPHeaderField:@"Accept"];
-
 	
-	NSString *escapedUser = (NSString *)CFURLCreateStringByAddingPercentEscapes(kCFAllocatorDefault, 
-								(CFStringRef)user, NULL, (CFStringRef)@"@.:", kCFStringEncodingUTF8);
-	NSString *escapedPassword = (NSString *)CFURLCreateStringByAddingPercentEscapes(kCFAllocatorDefault, 
-								(CFStringRef)password, NULL, (CFStringRef)@"@.:", kCFStringEncodingUTF8);
-	NSURL *url = [request URL];
-	NSURL *authURL = [NSURL URLWithString:[NSString stringWithFormat:@"%@://%@:%@@%@:%@%@?%@", [url scheme],escapedUser, escapedPassword, 
-										   [url host], [url port], [url path], [url query]]];
-	[request setURL:authURL];
+	
+	//NSString *escapedUser = (NSString *)CFURLCreateStringByAddingPercentEscapes(kCFAllocatorDefault, 
+	//																																						(CFStringRef)user, NULL, (CFStringRef)@"@.:", kCFStringEncodingUTF8);
+	//NSString *escapedPassword = (NSString *)CFURLCreateStringByAddingPercentEscapes(kCFAllocatorDefault, 
+																																									(CFStringRef)password, NULL, (CFStringRef)@"@.:", kCFStringEncodingUTF8);
+	//NSURL *url = [request URL];
+	//NSURL *authURL = [NSURL URLWithString:[NSString stringWithFormat:@"%@://%@:%@@%@:%@%@?%@", [url scheme],escapedUser, escapedPassword, 
+	//																			 [url host], [url port], [url path], [url query]]];
+	//[request setURL:authURL];
 	NSHTTPURLResponse *response;
 	NSError *error;
-	[self logRequest:request to:[authURL absoluteString]];
+	//[self logRequest:request to:[authURL absoluteString]];
 	NSData *data = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:&error];
 	[self logResponse:response withBody:data];
-	[escapedUser release];
-	[escapedPassword release];
+	//[escapedUser release];
+	//[escapedPassword release];
 	return [Response responseFrom:response withBody:data];
 }
+*/
+
++ (Response *)sendRequest:(NSMutableURLRequest *)request withUser:(NSString *)user andPassword:(NSString *)password {
+	
+	//lots of servers fail to implement http basic authentication correctly, so we pass the credentials even if they are not asked for
+	//TODO make this configurable?
+	NSURL *url = [request URL];
+	if(user && password) {
+		NSString *authString = [[[NSString stringWithFormat:@"%@:%@",user, password] dataUsingEncoding:NSUTF8StringEncoding] base64Encoding];
+		[request addValue:[NSString stringWithFormat:@"Basic %@", authString] forHTTPHeaderField:@"Authorization"];
+		[request addValue:@"application/xml" forHTTPHeaderField:@"Accept"];
+
+		NSString *escapedUser = (NSString *)CFURLCreateStringByAddingPercentEscapes(kCFAllocatorDefault, (CFStringRef)user, NULL, (CFStringRef)@"@.:", kCFStringEncodingUTF8);
+		NSString *escapedPassword = (NSString *)CFURLCreateStringByAddingPercentEscapes(kCFAllocatorDefault, (CFStringRef)password, NULL, (CFStringRef)@"@.:", kCFStringEncodingUTF8);
+		NSMutableString *urlString = [NSMutableString stringWithFormat:@"%@://%@:%@@%@",[url scheme],escapedUser,escapedPassword,[url host],nil];
+
+		if ([url port]) {
+			[urlString appendFormat:@":%@",[url port],nil];
+		}
+		[urlString appendString:[url path]];
+		if ([url query]) {
+			[urlString appendFormat:@"?%@",[url query],nil];
+		}
+		
+		[request setURL:[NSURL URLWithString:urlString]];
+		[escapedUser release];
+		[escapedPassword release];
+	}
+	
+	
+	[self logRequest:request to:[url absoluteString]];
+	
+	ConnectionDelegate *connectionDelegate = [[[ConnectionDelegate alloc] init] autorelease];
+	
+	[[self activeDelegates] addObject:connectionDelegate];
+	NSURLConnection *connection = [[[NSURLConnection alloc] initWithRequest:request delegate:connectionDelegate startImmediately:NO] autorelease];
+	connectionDelegate.connection = connection;
+	
+	
+	//use a custom runloop
+	static NSString *runLoopMode = @"com.terralien.medaxion.connectionLoop";
+	[connection scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:runLoopMode];
+	[connection start];
+	while (![connectionDelegate isDone]) {
+		[[NSRunLoop currentRunLoop] runMode:runLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:.3]];
+	}
+	Response *resp = [Response responseFrom:(NSHTTPURLResponse *)connectionDelegate.response
+																 withBody:connectionDelegate.data
+																 andError:connectionDelegate.error];
+	[resp log];
+	
+	[activeDelegates removeObject:connectionDelegate];
+	
+	//if there are no more active delegates release the array
+	if (0 == [activeDelegates count]) {
+		NSMutableArray *tempDelegates = activeDelegates;
+		activeDelegates = nil;
+		[tempDelegates release];
+	}
+	
+	return resp;
+}
+
 
 + (Response *)post:(NSString *)body to:(NSString *)url {
 	return [self post:body to:url withUser:@"X" andPassword:@"X"];
