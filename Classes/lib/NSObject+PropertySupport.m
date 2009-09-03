@@ -27,8 +27,9 @@
 		for (i = 0; i < outCount; i++)
 		{
 			objc_property_t * prop = propList + i;
-			propName = [NSString stringWithCString:property_getName(*prop) encoding:NSUTF8StringEncoding];
+			propName = [[NSString alloc] initWithCString:property_getName(*prop) encoding:NSUTF8StringEncoding];
 			[propertyNames addObject:propName];
+			[propName release];
 		}
 		
 		free(propList);
